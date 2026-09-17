@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "toxicfilter-sdk"
+version = "1.0.0"
+description = "The official Python client for the ToxicFilter content moderation API."
+readme = "README.md"
+authors = [{ name = "Edu Lazaro" }]
+requires-python = ">=3.9"
+license = { text = "MIT" }
+keywords = ["moderation", "content-moderation", "toxicity", "spam", "api", "client"]
+
+# PyPI shows these and people filter by them. The Python versions listed are the ones the
+# CI matrix actually runs, so the promise and the proof are the same list.
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+# No dependencies, deliberately: a client for one small API is not worth a dependency
+# tree, and pinning an HTTP library is how a client gets removed from a project.
+dependencies = []
+
+[project.urls]
+Homepage = "https://toxicfilter.com"
+Documentation = "https://toxicfilter.com/docs/sdks"
+Source = "https://github.com/toxicfilter/python-sdk"
+Issues = "https://github.com/toxicfilter/python-sdk/issues"
+
+[tool.setuptools.packages.find]
+include = ["toxicfilter*"]
+
+# PEP 561. Without this marker shipped inside the package, a type checker ignores every
+# annotation in it: the client is fully annotated and consumers would see none of it.
+[tool.setuptools.package-data]
+toxicfilter = ["py.typed"]

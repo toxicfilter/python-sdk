@@ -1,0 +1,29 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+
+    # `requires-python = ">=3.9"`, so 3.9 is part of the promise and gets checked.
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+
+    name: Python ${{ matrix.python }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      # Nothing to install: the client has no dependencies and the suite drives it through
+      # a stub transport, so it needs neither the network nor a package index.
+      - run: python -m unittest discover -s tests -v
