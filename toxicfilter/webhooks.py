@@ -60,8 +60,13 @@ def verify(payload: bytes | str, header: str, secret: str, tolerance: int = 300)
     return hmac.compare_digest(expected, signature)
 
 
-def event(payload: bytes | str, header: str, secret: str, tolerance: int = 300) -> dict[str, Any] | None:
-    """The decoded event, or None when it does not verify."""
+def event(
+    payload: bytes | str,
+    header: str,
+    secret: str,
+    tolerance: int = 300,
+) -> dict[str, Any] | None:
+    """Decode the event, or return None when it does not verify."""
     if not verify(payload, header, secret, tolerance):
         return None
 

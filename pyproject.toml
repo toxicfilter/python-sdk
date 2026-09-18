@@ -47,3 +47,47 @@ include = ["toxicfilter*"]
 # annotation in it: the client is fully annotated and consumers would see none of it.
 [tool.setuptools.package-data]
 toxicfilter = ["py.typed"]
+
+# Ruff, so following PEP 8 and PEP 257 is a check rather than an opinion. The `D` rules
+# are pydocstyle: what needs a docstring and what shape it takes.
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "N", "UP", "B", "A", "C4", "SIM", "D", "RUF"]
+ignore = [
+    # A one-line summary on the same line as the quotes is what an accessor wants, and
+    # forcing the multi-line shape on thirty of them is noise, not documentation.
+    "D200", "D205", "D212",
+    # The module docstring of a package's `__init__` is its README's first line; requiring
+    # one on every private module as well says nothing.
+    "D104",
+    # PEP 8 asks for an `Error` suffix on exception names, and these deliberately do not
+    # have one: `QuotaExhausted`, `RateLimited`, `InvalidRequest` and `NotFound` are the
+    # same names the PHP and JavaScript clients use, and one shape in three languages is
+    # a documented decision of this product. Forking the naming per language would cost
+    # more than the convention buys.
+    "N818",
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "pep257"
+
+# A property reads as a value, not as an action, so "Nothing crossed a line" is right
+# there and "Return whether nothing crossed a line" is worse. Imperative mood stays
+# required for everything that is actually called.
+property-decorators = ["property"]
+
+[tool.ruff.lint.per-file-ignores]
+# A test's name is its description, so a docstring on each one repeats it. The line limit
+# is off here too, and deliberately: what is long in a test is a fixture, and a JSON
+# literal wrapped to satisfy a column count is harder to read than the thing it describes.
+"tests/*" = ["D100", "D101", "D102", "D103", "D107", "E501"]
+
+[tool.mypy]
+# 3.10 and not the 3.9 of `requires-python`: mypy 2.x refuses to check against 3.9. The
+# package still supports it, and what proves that is the CI matrix running the suite there.
+python_version = "3.10"
+strict = true
+warn_unreachable = true

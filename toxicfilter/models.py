@@ -15,12 +15,13 @@ class Verdict:
     """
 
     def __init__(self, raw: dict[str, Any]) -> None:
+        """Wrap the decoded JSON of one answer."""
         self.raw = raw
 
     @property
     def decision(self) -> str:
         """``allow``, ``review`` or ``block``."""
-        return self.raw.get("decision", "allow")
+        return str(self.raw.get("decision", "allow"))
 
     @property
     def allowed(self) -> bool:
@@ -104,15 +105,16 @@ class Verdict:
         """
         return dict(self.raw.get("leads") or {})
 
-    def lead(self, type: str) -> float:
+    def lead(self, name: str) -> float:
         """One lead type's score, 0.0 when nothing suggested it."""
-        return float(self.leads.get(type, 0.0))
+        return float(self.leads.get(name, 0.0))
 
     @property
     def facts(self) -> dict[str, Any]:
         """What was noticed but is not a finding: ``age_signal``, a detected language, a
         near-duplicate's fingerprint. Deliberately not signals: a thirteen-year-old saying
-        so is a child using a website, not a thing they did wrong."""
+        so is a child using a website, not a thing they did wrong.
+        """
         return dict(self.raw.get("facts") or {})
 
     @property
@@ -138,8 +140,8 @@ class Verdict:
     @property
     def charged(self) -> int:
         """What this call cost, in credits."""
-        credits = self.raw.get("credits") or {}
-        return int(credits.get("charged", self.raw.get("charged", 0)))
+        credit_block = self.raw.get("credits") or {}
+        return int(credit_block.get("charged", self.raw.get("charged", 0)))
 
     @property
     def credits_remaining(self) -> int:
@@ -287,6 +289,7 @@ class Verdict:
         return int(self.raw.get("took_ms", 0))
 
     def __repr__(self) -> str:  # pragma: no cover - debugging sugar
+        """Summarise the verdict for a log line or a debugger."""
         return f"<Verdict {self.decision} flagged={self.flagged} id={self.id}>"
 
 
@@ -298,17 +301,18 @@ class BatchResult:
     """
 
     def __init__(self, raw: dict[str, Any]) -> None:
+        """Wrap the decoded JSON of one answer."""
         self.raw = raw
 
     @property
     def id(self) -> str:
         """The batch's own id, `bat_...`."""
-        return self.raw.get("batch_id", "")
+        return str(self.raw.get("batch_id", ""))
 
     @property
     def status(self) -> str:
         """`queued`, `running`, `completed` or `failed`."""
-        return self.raw.get("status", "queued")
+        return str(self.raw.get("status", "queued"))
 
     @property
     def finished(self) -> bool:
@@ -328,7 +332,11 @@ class BatchResult:
     def failures(self) -> dict[int, dict[str, Any]]:
         """The items that could not be judged, keyed by their index."""
         rows = self.raw.get("results") or self.raw.get("errors") or []
-        return {int(row.get("index", i)): row["error"] for i, row in enumerate(rows) if "error" in row}
+        return {
+            int(row.get("index", i)): row["error"]
+            for i, row in enumerate(rows)
+            if "error" in row
+        }
 
     @property
     def count(self) -> int:
@@ -367,4 +375,5 @@ class BatchResult:
         return self.next_after is not None
 
     def __repr__(self) -> str:  # pragma: no cover
+        """Summarise the batch for a log line or a debugger."""
         return f"<BatchResult {self.id} {self.status} {self.processed}/{self.count}>"

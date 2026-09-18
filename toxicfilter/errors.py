@@ -16,6 +16,8 @@ class ToxicFilterError(Exception):
     #: Whether asking again could plausibly work.
     retryable = False
 
+    # The status, the payload and the code travel with the error because branching on a
+    # message is what a client does when the exception does not carry them.
     def __init__(
         self,
         message: str,
@@ -23,6 +25,7 @@ class ToxicFilterError(Exception):
         code: str | None = None,
         payload: dict[str, Any] | None = None,
     ) -> None:
+        """Build the error with what the response said about it."""
         super().__init__(message)
         self.message = message
         self.status = status
@@ -58,7 +61,9 @@ class QuotaExhausted(ToxicFilterError):
     @property
     def renews_at(self) -> str | None:
         """When the monthly allowance comes back, ISO 8601, or None."""
-        return self.payload.get("credits", {}).get("renews_at")
+        renews = self.payload.get("credits", {}).get("renews_at")
+
+        return str(renews) if renews is not None else None
 
 
 class RateLimited(ToxicFilterError):
@@ -92,7 +97,7 @@ class ServerError(ToxicFilterError):
 
 
 def error_for(status: int, payload: dict[str, Any]) -> ToxicFilterError:
-    """The right exception for a status."""
+    """Return the right exception for a status."""
     error = payload.get("error") or {}
     message = error.get("message") or payload.get("message") or "The request failed."
     code = error.get("code")

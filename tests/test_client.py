@@ -12,8 +12,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from toxicfilter import Client, QuotaExhausted, RateLimited, InvalidRequest, webhooks  # noqa: E402
-from toxicfilter.errors import ServerError  # noqa: E402
+from toxicfilter import Client, InvalidRequest, QuotaExhausted, RateLimited, webhooks
+from toxicfilter.errors import ServerError
 
 
 class FakeTransport:
@@ -44,7 +44,13 @@ class FakeTransport:
 
 def client(responses, **kwargs):
     transport = FakeTransport(responses)
-    return Client("tf_test_key", "https://example.test", transport=transport, sleep=lambda s: None, **kwargs), transport
+    return Client(
+        "tf_test_key",
+        "https://example.test",
+        transport=transport,
+        sleep=lambda s: None,
+        **kwargs,
+    ), transport
 
 
 VERDICT = {
@@ -53,7 +59,9 @@ VERDICT = {
     "decision": "review",
     "flagged": ["toxicity"],
     "scores": {"toxicity": 0.55},
-    "signals": [{"category": "toxicity", "score": 0.55, "detector": "term", "reason": "Contains 1 profanity."}],
+    "signals": [
+        {"category": "toxicity", "score": 0.55, "detector": "term", "reason": "Contains 1 profanity."},
+    ],
     "used_ai": False,
     "took_ms": 2,
     "cached": False,
@@ -83,7 +91,12 @@ class VerdictTest(unittest.TestCase):
         self.assertEqual("POST", sent["method"])
         self.assertEqual("https://example.test/api/v1/text", sent["url"])
         self.assertEqual(
-            {"content": "you fucking legend", "locales": ["en"], "surface": "comment", "reference": "c_1"},
+            {
+                "content": "you fucking legend",
+                "locales": ["en"],
+                "surface": "comment",
+                "reference": "c_1",
+            },
             sent["body"],
         )
 
@@ -169,7 +182,10 @@ class RetryTest(unittest.TestCase):
         """402 means come back with a bigger plan. Retrying it hammers forever."""
         tf, transport = client(
             [
-                (402, {"error": {"code": "quota_exhausted"}, "credits": {"remaining": 20, "required": 40}}),
+                 (
+                    402,
+                    {"error": {"code": "quota_exhausted"}, "credits": {"remaining": 20, "required": 40}},
+                ),
                 (200, VERDICT),
             ]
         )
@@ -254,12 +270,18 @@ class QueueTest(unittest.TestCase):
 
         queue = tf.records(state="open", limit=10)
         self.assertEqual("c_1", queue["records"][0].reference)
-        self.assertEqual("https://example.test/api/v1/records?state=open&limit=10", transport.calls[0]["url"])
+        self.assertEqual(
+            "https://example.test/api/v1/records?state=open&limit=10",
+            transport.calls[0]["url"],
+        )
 
         tf.resolve("mod_01", "approved", moderator="ana@example.com")
         tf.feedback("mod_01", "false_positive")
 
-        self.assertEqual({"action": "approved", "moderator": "ana@example.com"}, transport.calls[1]["body"])
+        self.assertEqual(
+            {"action": "approved", "moderator": "ana@example.com"},
+            transport.calls[1]["body"],
+        )
         self.assertEqual({"verdict": "false_positive"}, transport.calls[2]["body"])
 
     def test_reads_carry_no_idempotency_key(self):
@@ -290,7 +312,10 @@ class WebhookTest(unittest.TestCase):
 
     def test_it_accepts_ours(self):
         self.assertTrue(webhooks.verify(self.body, self.signature(), self.secret))
-        self.assertEqual("moderation.review", webhooks.event(self.body, self.signature(), self.secret)["event"])
+        self.assertEqual(
+            "moderation.review",
+            webhooks.event(self.body, self.signature(), self.secret)["event"],
+        )
 
     def test_it_refuses_everything_else(self):
         import time
@@ -310,7 +335,8 @@ class InlineImages(unittest.TestCase):
     """The endpoint takes an address OR bytes, exactly one, and for a long time every
     client here could only send the address. That is the wrong way round for the commonest
     case: the reason to check an image is to decide whether to publish it, so demanding it
-    be published first defeats the purpose."""
+    be published first defeats the purpose.
+    """
 
     def test_bytes_go_out_as_data(self):
         tf, transport = client([(200, VERDICT)])
@@ -373,7 +399,8 @@ class ReadTimeouts(unittest.TestCase):
     `except ToxicFilterError` they had written.
 
     Tested against the real transport, because the bug lived in its except clause and a
-    fake one would answer for the fake."""
+    fake one would answer for the fake.
+    """
 
     def test_a_read_timeout_becomes_a_retryable_server_error(self):
         import urllib.request
@@ -396,7 +423,7 @@ class ReadTimeouts(unittest.TestCase):
         self.assertTrue(caught.exception.retryable)
 
     def test_a_transport_of_your_own_has_to_say_so(self):
-        tf, transport = client([(0, TimeoutError("timed out")), (200, VERDICT)])
+        tf, _ = client([(0, TimeoutError("timed out")), (200, VERDICT)])
 
         # The retry loop asks again about `ToxicFilterError` and nothing else, so a
         # transport you wrote yourself has to report a failed connection as `ServerError`
@@ -446,7 +473,11 @@ class WaitTest(unittest.TestCase):
         tf.text("hello")
 
         self.assertEqual([30], waited, "A day is not a retry, it is a hang.")
-        self.assertEqual(2, len(transport.calls), "Still retried: the wait is capped, not abandoned.")
+        self.assertEqual(
+            2,
+            len(transport.calls),
+            "Still retried: the wait is capped, not abandoned.",
+        )
 
     def test_a_rate_limit_with_no_number_still_waits(self):
         tf, _, waited = self.waiting([(429, {"error": {"code": "rate_limited"}}), (200, VERDICT)])
@@ -484,7 +515,10 @@ class ReadableFieldsTest(unittest.TestCase):
     def test_it_reads_the_masked_content(self):
         tf, _ = client([(200, {**VERDICT, "redacted": "call me on [redacted]"})])
 
-        self.assertEqual("call me on [redacted]", tf.text("call me on 600 123 456", redact=True).redacted)
+        self.assertEqual(
+            "call me on [redacted]",
+            tf.text("call me on 600 123 456", redact=True).redacted,
+        )
 
     def test_content_that_was_not_masked_is_none(self):
         tf, _ = client([(200, VERDICT)])
@@ -531,7 +565,11 @@ class ReadableFieldsTest(unittest.TestCase):
 
         verdict = tf.text("you fucking legend")
 
-        self.assertEqual("review", verdict.decision, "The live policy decides; the trial never does.")
+        self.assertEqual(
+            "review",
+            verdict.decision,
+            "The live policy decides; the trial never does.",
+        )
         self.assertEqual("block", verdict.shadow["decision"])
         self.assertEqual("stricter", verdict.shadow["slug"])
         self.assertEqual(3, verdict.shadow["version"])
@@ -602,8 +640,14 @@ class ReadableFieldsTest(unittest.TestCase):
     def test_a_batch_page_carries_its_cursor(self):
         tf, transport = client(
             [
-                (200, {"batch_id": "batch_01", "status": "running", "results": [], "next_after": 99}),
-                (200, {"batch_id": "batch_01", "status": "completed", "results": [], "next_after": None}),
+                 (
+                    200,
+                    {"batch_id": "batch_01", "status": "running", "results": [], "next_after": 99},
+                ),
+                 (
+                    200,
+                    {"batch_id": "batch_01", "status": "completed", "results": [], "next_after": None},
+                ),
             ]
         )
 

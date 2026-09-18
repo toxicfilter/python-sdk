@@ -29,6 +29,7 @@ class Transport(Protocol):
     def send(
         self, method: str, url: str, headers: dict[str, str], body: bytes | None
     ) -> tuple[int, str]:  # pragma: no cover - interface
+        """Send the request and return ``(status, body)``."""
         ...
 
 
@@ -41,9 +42,12 @@ class UrllibTransport:
     """
 
     def __init__(self, timeout: float = 10.0) -> None:
+        """Build a transport whose requests give up after ``timeout`` seconds."""
         self.timeout = timeout
 
-    def send(self, method: str, url: str, headers: dict[str, str], body: bytes | None) -> tuple[int, str]:
+    def send(
+        self, method: str, url: str, headers: dict[str, str], body: bytes | None
+    ) -> tuple[int, str]:
         """Send the request and return ``(status, body)``, raising only for the unreachable."""
         request = urllib.request.Request(url, data=body, headers=headers, method=method)
 
@@ -103,6 +107,21 @@ class Client:
         sleep: Callable[[float], None] = time.sleep,
         max_wait: float = 30.0,
     ) -> None:
+        """Build a client.
+
+        Args:
+            api_key: ``tf_live_...`` or ``tf_test_...``.
+            base_url: the service, for a self-hosted or a staging one.
+            retries: how many times to ask again when it is worth asking again. A 429 or a
+                5xx is retried with a growing wait; a 402 never is.
+            timeout: seconds for the whole request. Ignored when ``transport`` is given,
+                since a transport owns its own.
+            transport: anything with a ``send()``, to put the request through your own HTTP
+                stack.
+            sleep: how to wait between attempts. Replaced in tests so they do not.
+            max_wait: ceiling on that wait. A 429 says how long to wait, and a number on
+                the wire must not decide how long your own request hangs.
+        """
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
         self.retries = retries
@@ -116,7 +135,7 @@ class Client:
     # -- moderation ---------------------------------------------------------------
 
     def text(self, content: str, **options: Any) -> Verdict:
-        """A comment, a review, a message, a description."""
+        """Judge a piece of text: a comment, a review, a message, a description."""
         return Verdict(self._post("/api/v1/text", {"content": content, **options}))
 
     def email(self, address: str, **options: Any) -> Verdict:
@@ -132,7 +151,7 @@ class Client:
         return Verdict(self._post("/api/v1/signup", fields))
 
     def image(self, url: str, **options: Any) -> Verdict:
-        """A picture, by address or by value.
+        """Judge a picture, by address or by value.
 
         An http or https address is fetched by us. Anything else is treated as the file
         itself and goes out as bytes: not a guess, since ``url`` accepts those two schemes
@@ -144,7 +163,7 @@ class Client:
         return Verdict(self._post("/api/v1/image", {"url": url, **options}))
 
     def image_data(self, data: bytes | str, **options: Any) -> Verdict:
-        """A picture you have, rather than one you have published.
+        """Judge a picture you hold, rather than one you have published.
 
         Takes the raw file, a base64 string or a ``data:`` URI. Never retained by the
         service, whatever the policy says: you already hold the file.
@@ -161,11 +180,12 @@ class Client:
 
     def url(self, url: str, **options: Any) -> Verdict:
         """One link, judged as a link. Never fetches it, so a clean answer means "looks like
-        what it says", not "safe"."""
+        what it says", not "safe".
+        """
         return Verdict(self._post("/api/v1/url", {"url": url, **options}))
 
     def conversation(self, messages: list[dict[str, Any]], **options: Any) -> Verdict:
-        """A message with what came before it.
+        """Judge a message with what came before it.
 
         The LAST message is judged and the rest is context, which is what catches a pile-on
         or an approach that no single message shows. Up to fifty, oldest first, each
@@ -180,7 +200,7 @@ class Client:
         return BatchResult(self._post("/api/v1/batch", {"items": list(items), **options}))
 
     def batch_async(self, items: list[dict[str, Any]], **options: Any) -> BatchResult:
-        """The same, queued. Answers immediately; the work happens on our side."""
+        """Queue the same batch. Answer immediately; the work happens on our side."""
         return self.batch(items, **{**options, "async": True})
 
     def batch_status(self, batch_id: str, **query: Any) -> BatchResult:
@@ -190,7 +210,7 @@ class Client:
     # -- the review queue ---------------------------------------------------------
 
     def records(self, **query: Any) -> dict[str, Any]:
-        """What is waiting for a person."""
+        """List what is waiting for a person."""
         body = self._get("/api/v1/records", query)
 
         return {
@@ -202,8 +222,14 @@ class Client:
         """One stored verdict, in full, with the content if any was kept."""
         return Verdict(self._get(f"/api/v1/records/{urllib.parse.quote(record_id)}"))
 
-    def resolve(self, record_id: str, action: str, moderator: str | None = None, note: str | None = None) -> Verdict:
-        """A person decided. ``action`` is ``approved`` or ``rejected``."""
+    def resolve(
+        self,
+        record_id: str,
+        action: str,
+        moderator: str | None = None,
+        note: str | None = None,
+    ) -> Verdict:
+        """Record that a person decided. ``action`` is ``approved`` or ``rejected``."""
         payload = {"action": action}
 
         if moderator is not None:
@@ -211,17 +237,22 @@ class Client:
         if note is not None:
             payload["note"] = note
 
-        return Verdict(self._post(f"/api/v1/records/{urllib.parse.quote(record_id)}/resolve", payload))
+        path = f"/api/v1/records/{urllib.parse.quote(record_id)}/resolve"
+
+        return Verdict(self._post(path, payload))
 
     def feedback(self, record_id: str, verdict: str, note: str | None = None) -> Verdict:
         """Tell us the verdict was wrong. It costs nothing, and it is the only honest
-        measure of whether the thresholds are set well."""
+        measure of whether the thresholds are set well.
+        """
         payload: dict[str, Any] = {"verdict": verdict}
 
         if note is not None:
             payload["note"] = note
 
-        return Verdict(self._post(f"/api/v1/records/{urllib.parse.quote(record_id)}/feedback", payload))
+        path = f"/api/v1/records/{urllib.parse.quote(record_id)}/feedback"
+
+        return Verdict(self._post(path, payload))
 
     # -- the account --------------------------------------------------------------
 

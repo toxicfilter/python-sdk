@@ -24,6 +24,29 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
 
-      # Nothing to install: the client has no dependencies and the suite drives it through
-      # a stub transport, so it needs neither the network nor a package index.
+      # Nothing to install for the suite itself: the client has no dependencies and the
+      # tests drive it through a stub transport, so they need neither the network nor a
+      # package index.
       - run: python -m unittest discover -s tests -v
+
+  standards:
+    runs-on: ubuntu-latest
+    name: PEP 8, PEP 257 and types
+
+    # Once, on the newest version: style and types are the same answer everywhere, and
+    # running them five times only makes the log longer.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - run: pip install ruff mypy
+
+      # PEP 8 and PEP 257, so following them is a check rather than an opinion.
+      - run: ruff check .
+
+      # Strict, because the package ships `py.typed`: it tells every consumer's type
+      # checker to trust these annotations, so they had better be right.
+      - run: mypy toxicfilter/
