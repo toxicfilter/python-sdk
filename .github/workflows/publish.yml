@@ -1,0 +1,54 @@
+name: Publish
+
+# A tag, for the same reason as everywhere else: it is the version and the commit agreeing.
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    # The environment is not decoration: PyPI's trusted publishing can be restricted to
+    # one, so a workflow on another branch cannot use the same trust.
+    environment: pypi
+
+    permissions:
+      contents: read
+      # This is the whole point. PyPI accepts an OIDC token from this workflow instead of
+      # an API token, so there is no long-lived secret to leak, rotate or paste anywhere.
+      # It has to be configured once on PyPI as a publisher for this project; a "pending
+      # publisher" can be set up BEFORE the first release, so even that one needs no token.
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - run: pip install build twine
+
+      # Nothing is published that does not pass. A version on PyPI cannot be replaced or
+      # reused, so a broken release is always a new number.
+      - run: python -m unittest discover -s tests -v
+
+      # The tag and the manifest have to say the same thing, or the release history stops
+      # meaning anything.
+      - name: The tag matches the version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          VERSION="$(grep -m1 '^version' pyproject.toml | cut -d'"' -f2)"
+          if [ "$TAG" != "$VERSION" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match pyproject version $VERSION."
+            exit 1
+          fi
+
+      - run: python -m build
+
+      # What catches a README that PyPI will not render, which is the commonest way a
+      # first release looks broken on the one page everybody reads.
+      - run: twine check dist/*
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
