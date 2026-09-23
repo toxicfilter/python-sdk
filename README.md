@@ -37,6 +37,11 @@ correct behaviour is opposite: retry a rate limit, stop dead on a quota.
 **Makes those retries safe.** Every call carries an `Idempotency-Key`, generated per call,
 so a request that timed out and is asked again is judged once and billed once.
 
+**Never reads a non-answer as `allow`.** Only a 2xx whose body is a JSON object is an
+answer. A redirect (never followed, so your key goes nowhere it was not sent), an empty body
+or a proxy's HTML page is a retryable `ServerError`, and a verdict without a `decision`
+raises rather than defaulting to publish.
+
 **Waits as long as the service asked, and no longer.** A 429 carries `retry_after`, and
 honouring it beats guessing: the service knows when its own window turns over. It is bounded
 by `max_wait` (30 seconds by default) all the same, because a number on the wire should not
@@ -84,6 +89,8 @@ verdict.context    # repeats, near-duplicates, the actor's record and what it mo
 verdict.shadow     # what a policy you are trialling would have said. Never what happened
 verdict.facts      # noticed, not a finding: a language, an age signal, a fingerprint
 verdict.degraded   # part of the pipeline could not run
+verdict.model      # asked for the model and deliberately not run, and why; or None
+verdict.renews_at  # when the monthly allowance comes back
 ```
 
 `redacted` is usually worth more than a refusal: throwing a whole comment away because it
@@ -141,10 +148,14 @@ batch = tf.batch([
 
 for index, verdict in batch.verdicts.items(): ...
 for index, error in batch.failures.items(): ...
+batch.unplaced_failures   # failures that name no item, such as a lost async chunk
 
-# A backfill: queued, answered immediately, polled or webhooked.
-queued = tf.batch_async(ten_thousand_comments)
-tf.batch_status(queued.id)
+# A backfill: queued, answered immediately, polled or webhooked. Up to 1,000 items per
+# call (100 for a sync batch), so a bigger backfill goes out in slices.
+for start in range(0, len(comments), 1000):
+    queued = tf.batch_async(comments[start:start + 1000])
+    queued.status_url   # where to poll it; `batch.completed` is the webhook
+    queued.summary      # allow / review / block / failed, over the whole batch
 
 # A backfill read back a page at a time. A cursor, not an offset: rows appear as workers
 # finish them, so an offset skips whatever was inserted behind it.
@@ -158,7 +169,8 @@ queue = tf.records(state="open")
 tf.resolve(record_id, "approved", moderator="ana@example.com")
 tf.feedback(record_id, "false_positive")   # free, and the only honest measure we have
 
-# And what a held verdict has had done to it.
+# And what a held verdict has had done to it. `record()`, `resolve()` and `feedback()`
+# answer with the whole stored verdict; the `records()` listing does not carry `review`.
 verdict = tf.record(record_id)
 verdict.review_state   # open, approved or rejected
 verdict.resolved_by    # your own name for whoever decided
@@ -213,4 +225,4 @@ the moderation API this client speaks to.
 
 ## License
 
-The ToxicFilter Python SDK is open-sourced software licensed under the [MIT license](LICENSE).
+The ToxicFilter Python SDK is open-sourced software licensed under the [MIT license](https://github.com/toxicfilter/python-sdk/blob/main/LICENSE).

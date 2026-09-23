@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from .errors import ServerError
+
 
 class Verdict:
     """One answer.
@@ -20,8 +22,21 @@ class Verdict:
 
     @property
     def decision(self) -> str:
-        """``allow``, ``review`` or ``block``."""
-        return str(self.raw.get("decision", "allow"))
+        """``allow``, ``review`` or ``block``.
+
+        Raises ``ServerError`` when the answer carries none. It used to default to
+        ``allow``, which made anything that was not a verdict (an empty body, a proxy's
+        page) publish the content it was supposed to be checking. Every answer that is a
+        verdict carries one, stored records and batch rows included.
+        """
+        decision = self.raw.get("decision")
+
+        if decision not in ("allow", "review", "block"):
+            raise ServerError(
+                f"The answer carried no decision ({decision!r}), so it is not a verdict."
+            )
+
+        return str(decision)
 
     @property
     def allowed(self) -> bool:
@@ -149,6 +164,30 @@ class Verdict:
         return int((self.raw.get("credits") or {}).get("remaining", 0))
 
     @property
+    def renews_at(self) -> str | None:
+        """When the monthly allowance comes back, ISO 8601, or None.
+
+        The end of the current month whatever the balance, so it is there long before you
+        run out. ``None`` for an account that has never spent anything (the month starts
+        with the first call) and on a stored verdict, which carries no credits block.
+        """
+        renews = (self.raw.get("credits") or {}).get("renews_at")
+        return renews if isinstance(renews, str) else None
+
+    @property
+    def model(self) -> dict[str, Any] | None:
+        """``{"asked": True, "read": False, "why": ...}`` when you asked for the model and
+        it was deliberately not run on this call, or ``None``.
+
+        Deliberately, as opposed to ``degraded``, which says it could not run. In a
+        conversation the model reads only when it adds something (``why`` is then
+        ``conversation_sampling``), and without this block a message it skipped looked
+        exactly like one the cheap detectors settled.
+        """
+        model = self.raw.get("model")
+        return dict(model) if isinstance(model, dict) else None
+
+    @property
     def policy(self) -> dict[str, Any]:
         """Which rules produced this, by name and version. Worth logging."""
         policy = self.raw.get("policy") or {}
@@ -208,8 +247,9 @@ class Verdict:
         """Where this verdict stands in the queue: the state, who decided and when.
 
         Only ``review`` opens an entry, so a verdict that was allowed outright has nothing
-        here. Filled by ``records()`` and ``record()`` rather than by the call that produced
-        the verdict.
+        here. Filled by ``record()``, ``resolve()`` and ``feedback()``, which answer with the
+        whole stored verdict. Not by ``records()``: the listing returns the verdict alone,
+        and not by the call that produced it.
         """
         return dict(self.raw.get("review") or {})
 
@@ -328,15 +368,59 @@ class BatchResult:
             if "error" not in row
         }
 
+    def _error_rows(self) -> list[dict[str, Any]]:
+        """Every error row, wherever the answer put it.
+
+        A sync batch puts item errors among its ``results``; ``batch_status()`` puts
+        verdicts in ``results`` and errors in ``errors``. Reading ``results or errors`` never
+        reached the second as soon as one verdict existed, so a page of a finished backfill
+        reported no failures at all. Both are read; the same row in both (a sync batch's
+        malformed items are) is one failure, because they are keyed by index.
+        """
+        rows = [*(self.raw.get("results") or []), *(self.raw.get("errors") or [])]
+        return [row for row in rows if isinstance(row, dict) and "error" in row]
+
     @property
     def failures(self) -> dict[int, dict[str, Any]]:
-        """The items that could not be judged, keyed by their index."""
-        rows = self.raw.get("results") or self.raw.get("errors") or []
+        """The items that could not be judged, keyed by the position they were sent in.
+
+        Only rows that name their item. A failure that belongs to no single item (a chunk
+        of an async batch that died outright) is in ``unplaced_failures`` instead: numbered
+        by its position in the list it would have taken a real item's key.
+        """
         return {
-            int(row.get("index", i)): row["error"]
-            for i, row in enumerate(rows)
-            if "error" in row
+            int(row["index"]): row["error"]
+            for row in self._error_rows()
+            if row.get("index") is not None
         }
+
+    @property
+    def unplaced_failures(self) -> list[dict[str, Any]]:
+        """Failures that name no item, such as ``chunk_failed``.
+
+        A worker that dies with a chunk reports how many items were lost, not which, so
+        there is no index to key it by. ``failed`` counts those items; this says why.
+        """
+        return [row["error"] for row in self._error_rows() if row.get("index") is None]
+
+    @property
+    def is_async(self) -> bool:
+        """Whether it was queued rather than answered in the call."""
+        return bool(self.raw.get("async"))
+
+    @property
+    def summary(self) -> dict[str, int]:
+        """How many ended ``allow``, ``review`` and ``block``, and how many ``failed``.
+
+        Counted over the whole batch, not over the page you are holding.
+        """
+        return {k: int(v) for k, v in (self.raw.get("summary") or {}).items()}
+
+    @property
+    def status_url(self) -> str | None:
+        """Where to poll an async batch. Only on the answer that queued it."""
+        url = self.raw.get("status_url")
+        return url if isinstance(url, str) else None
 
     @property
     def count(self) -> int:

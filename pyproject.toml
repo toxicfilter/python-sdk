@@ -1,15 +1,18 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "toxicfilter-sdk"
-version = "1.0.0"
+version = "1.0.1"
 description = "The official Python client for the ToxicFilter content moderation API."
 readme = "README.md"
 authors = [{ name = "Edu Lazaro" }]
 requires-python = ">=3.9"
-license = { text = "MIT" }
+# PEP 639: an SPDX expression and the file it refers to. The old `{ text = ... }` table and
+# the licence classifier are deprecated, and setuptools 77 is the first to read this form.
+license = "MIT"
+license-files = ["LICENSE"]
 keywords = ["moderation", "content-moderation", "toxicity", "spam", "api", "client"]
 
 # PyPI shows these and people filter by them. The Python versions listed are the ones the
@@ -17,7 +20,6 @@ keywords = ["moderation", "content-moderation", "toxicity", "spam", "api", "clie
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
@@ -84,6 +86,10 @@ property-decorators = ["property"]
 # is off here too, and deliberately: what is long in a test is a fixture, and a JSON
 # literal wrapped to satisfy a column count is harder to read than the thing it describes.
 "tests/*" = ["D100", "D101", "D102", "D103", "D107", "E501"]
+# The package docstring is an example, indented so `help(toxicfilter)` shows it as a code
+# block. Flattened to satisfy D208 it lost the indentation of its `if` branches and stopped
+# being valid Python, which `test_the_package_docstring_is_valid_python` now checks.
+"toxicfilter/__init__.py" = ["D208"]
 
 [tool.mypy]
 # 3.10 and not the 3.9 of `requires-python`: mypy 2.x refuses to check against 3.9. The

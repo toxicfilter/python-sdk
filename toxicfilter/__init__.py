@@ -1,16 +1,16 @@
 """The official Python client for ToxicFilter.
 
-from toxicfilter import Client
+    from toxicfilter import Client
 
-tf = Client("tf_live_...")
-verdict = tf.text("Check this message", locales=["en"], surface="comment")
+    tf = Client("tf_live_...")
+    verdict = tf.text("Check this message", locales=["en"], surface="comment")
 
-if verdict.blocked:
-refuse()
-elif verdict.needs_review:
-hold_for_a_person(verdict.id, verdict.reasons)
-else:
-publish()
+    if verdict.blocked:
+        refuse()
+    elif verdict.needs_review:
+        hold_for_a_person(verdict.id, verdict.reasons)
+    else:
+        publish()
 """
 
 from . import webhooks

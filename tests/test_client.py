@@ -403,22 +403,17 @@ class ReadTimeouts(unittest.TestCase):
     """
 
     def test_a_read_timeout_becomes_a_retryable_server_error(self):
-        import urllib.request
-
         from toxicfilter.client import UrllibTransport
 
-        original = urllib.request.urlopen
+        class TimingOut:
+            def open(self, *args, **kwargs):
+                raise TimeoutError("timed out")
 
-        def timing_out(*args, **kwargs):
-            raise TimeoutError("timed out")
+        transport = UrllibTransport()
+        transport._opener = TimingOut()
 
-        urllib.request.urlopen = timing_out
-
-        try:
-            with self.assertRaises(ServerError) as caught:
-                UrllibTransport().send("POST", "https://example.test/api/v1/text", {}, b"{}")
-        finally:
-            urllib.request.urlopen = original
+        with self.assertRaises(ServerError) as caught:
+            transport.send("POST", "https://example.test/api/v1/text", {}, b"{}")
 
         self.assertTrue(caught.exception.retryable)
 

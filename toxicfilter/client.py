@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import http.client
 import json
 import secrets
 import time
@@ -15,7 +16,10 @@ from typing import Any, Callable, Protocol
 from .errors import RateLimited, ServerError, ToxicFilterError, error_for
 from .models import BatchResult, Verdict
 
-VERSION = "1.0.0"
+#: The one place the version is written, besides ``pyproject.toml``: the publish workflow
+#: checks the tag against the manifest, and ``test_the_constant_and_the_manifest_agree``
+#: checks the manifest against this, so the User-Agent cannot claim a release it is not.
+VERSION = "1.0.1"
 
 
 class Transport(Protocol):
@@ -33,6 +37,20 @@ class Transport(Protocol):
         ...
 
 
+class _NoRedirects(urllib.request.HTTPRedirectHandler):
+    """Hand a 3xx back instead of following it.
+
+    urllib follows a POST answered with 302 as a GET to wherever ``Location`` says,
+    carrying the ``Authorization`` header with it. The API never redirects, so a redirect
+    is a proxy, a captive portal or a misconfigured base URL: following it sends the key
+    somewhere it was not meant for and reads that page as the answer.
+    """
+
+    def redirect_request(self, *args: Any, **kwargs: Any) -> None:
+        """Refuse every redirect, which makes urllib raise it as an ``HTTPError``."""
+        return None
+
+
 class UrllibTransport:
     """The standard library, and nothing else.
 
@@ -42,50 +60,65 @@ class UrllibTransport:
     """
 
     def __init__(self, timeout: float = 10.0) -> None:
-        """Build a transport whose requests give up after ``timeout`` seconds."""
+        """Build a transport whose socket operations give up after ``timeout`` seconds."""
         self.timeout = timeout
+        self._opener = urllib.request.build_opener(_NoRedirects)
 
     def send(
         self, method: str, url: str, headers: dict[str, str], body: bytes | None
     ) -> tuple[int, str]:
-        """Send the request and return ``(status, body)``, raising only for the unreachable."""
+        """Send the request and return ``(status, body)``, raising only for the unreachable.
+
+        Every failure of the connection itself becomes a ``ServerError``, which the client
+        retries. That includes the ones urllib does not wrap: a read timeout arrives as a
+        bare ``TimeoutError``, a truncated or garbled response as ``http.client``'s own
+        ``IncompleteRead`` or ``BadStatusLine``, and reading the body of an error response
+        can time out as well. Any of those escaping untyped would pass every
+        ``except ToxicFilterError`` the caller wrote, on the failure most worth retrying.
+        """
         request = urllib.request.Request(url, data=body, headers=headers, method=method)
 
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:
-                return response.status, response.read().decode("utf-8", "replace")
-        except urllib.error.HTTPError as e:
-            return e.code, e.read().decode("utf-8", "replace")
+            try:
+                with self._opener.open(request, timeout=self.timeout) as response:
+                    return response.status, response.read().decode("utf-8", "replace")
+            except urllib.error.HTTPError as e:
+                # Read here, inside the outer try: the body of an error can stall too.
+                return e.code, e.read().decode("utf-8", "replace")
         except urllib.error.URLError as e:
             # Reported as a server error because the caller does the same thing about
             # either: the request did not arrive, so ask again.
             raise ServerError(f"Could not reach ToxicFilter: {e.reason}") from e
-        except OSError as e:
-            # A READ timeout does not arrive as a URLError. `urlopen` wraps what happens
-            # while connecting and lets `socket.timeout` (which is `TimeoutError`, an
-            # OSError) through untouched once the connection is open, so without this the
-            # one failure most worth retrying was the one that escaped as something the
-            # caller had never heard of.
-            raise ServerError(f"Could not reach ToxicFilter: {e}") from e
-
+        except (http.client.HTTPException, OSError) as e:
+            raise ServerError(f"Could not reach ToxicFilter: {e!r}") from e
 
 
 def _encode_image(data: bytes | str) -> str:
-    """Bytes as the API wants them: base64, or a ``data:`` URI left alone.
+    """Bytes as the API wants them: standard base64, or a ``data:`` URI left alone.
 
     Encoding something already encoded would send the alphabet of the alphabet, and the
-    service would decode one layer and find text where a picture should be.
+    service would decode one layer and find text where a picture should be. Base64 is
+    therefore recognised as the rest of the world writes it, not only as ``b64encode``
+    does: wrapped at 76 columns (MIME, ``openssl``, ``base64.encodebytes``), in the
+    URL-safe alphabet, or without its padding. Each of those failed a strict check here and
+    went out encoded a second time. What is sent is the cleaned, standard form, because
+    the service decodes strictly and does not accept ``-`` or ``_``.
     """
     if isinstance(data, str):
         if data.startswith("data:"):
             return data
 
+        cleaned = "".join(data.split()).replace("-", "+").replace("_", "/")
+
+        if cleaned and len(cleaned) % 4:
+            cleaned += "=" * (-len(cleaned) % 4)
+
         try:
-            base64.b64decode(data, validate=True)
+            base64.b64decode(cleaned, validate=True)
         except (ValueError, binascii.Error):
             return base64.b64encode(data.encode()).decode()
 
-        return data
+        return cleaned
 
     return base64.b64encode(data).decode()
 
@@ -114,8 +147,10 @@ class Client:
             base_url: the service, for a self-hosted or a staging one.
             retries: how many times to ask again when it is worth asking again. A 429 or a
                 5xx is retried with a growing wait; a 402 never is.
-            timeout: seconds for the whole request. Ignored when ``transport`` is given,
-                since a transport owns its own.
+            timeout: seconds for each socket operation (connecting, then each read), not
+                for the whole request: that is what urllib's timeout means, so a server
+                trickling bytes can take longer in total. Ignored when ``transport`` is
+                given, since a transport owns its own.
             transport: anything with a ``send()``, to put the request through your own HTTP
                 stack.
             sleep: how to wait between attempts. Replaced in tests so they do not.
@@ -321,12 +356,20 @@ class Client:
         while True:
             try:
                 status, raw = self.transport.send(method, url, headers, body)
-                decoded = self._decode(raw)
+
+                if 200 <= status < 300:
+                    return self._answer(status, raw)
 
                 if status < 400:
-                    return decoded
+                    # The API never redirects. A 3xx is a proxy, a portal or a wrong base
+                    # URL, and whatever page it points at is not a verdict.
+                    raise ServerError(
+                        f"ToxicFilter answered {status}, a redirect, which the API never "
+                        "sends. Check base_url and any proxy in between.",
+                        status,
+                    )
 
-                raise error_for(status, decoded)
+                raise error_for(status, self._decode(raw))
             except ToxicFilterError as e:
                 if not e.retryable or attempt >= self.retries:
                     raise
@@ -345,7 +388,35 @@ class Client:
                 ))
 
     @staticmethod
+    def _answer(status: int, raw: str) -> dict[str, Any]:
+        """Return the body of a success, which has to be a JSON object or is no answer at all.
+
+        In 1.0.0 an empty or non-JSON body decoded to ``{}`` and a verdict with nothing in
+        it read as ``allow``: a proxy's HTML page published whatever was being checked.
+        Raised as a retryable ``ServerError``, because a garbled answer is the network's
+        fault and asking again is right.
+        """
+        try:
+            decoded = json.loads(raw)
+        except ValueError:
+            decoded = None
+
+        if not isinstance(decoded, dict):
+            raise ServerError(
+                f"ToxicFilter answered {status} with a body that is not a JSON object, "
+                "so there is no verdict in it.",
+                status,
+            )
+
+        return decoded
+
+    @staticmethod
     def _decode(raw: str) -> dict[str, Any]:
+        """Return the body of a refusal, as far as it can be read.
+
+        Lenient on purpose, unlike ``_answer``: a 502 from a load balancer is an HTML page,
+        and it must still become a ``ServerError`` rather than a decoding failure.
+        """
         try:
             decoded = json.loads(raw or "{}")
         except ValueError:

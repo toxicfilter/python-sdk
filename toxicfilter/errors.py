@@ -53,8 +53,10 @@ class QuotaExhausted(ToxicFilterError):
     def required(self) -> int:
         """What this call would have cost.
 
-        A 402 can arrive with credits still in the account: the check prices the call, not
-        one credit, so an image call worth forty is refused when twenty are left.
+        An estimate, and a 402 can arrive with credits still in the account. A check costs
+        one credit and a model reading adds the tokens it used, rounded up, which is only
+        known afterwards; so the call is priced beforehand at a typical reading (about 8
+        credits for a comment and 10 for an image) and refused when that does not fit.
         """
         return int(self.payload.get("credits", {}).get("required", 0))
 
