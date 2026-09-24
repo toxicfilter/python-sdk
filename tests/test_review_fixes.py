@@ -306,8 +306,10 @@ class VersionTest(unittest.TestCase):
         manifest = (ROOT / "pyproject.toml").read_text()
         declared = re.search(r'^version = "([^"]+)"', manifest, re.M).group(1)
 
+        # The release tag is the version: the publish workflow writes it into both before
+        # testing. What has to hold is that they agree, whatever the number.
         self.assertEqual(declared, VERSION)
-        self.assertEqual("1.2.4", VERSION)
+        self.assertRegex(VERSION, r"^\d+\.\d+\.\d+$")
 
     def test_the_user_agent_carries_it(self):
         tf, transport = client([(200, VERDICT)])

@@ -28,22 +28,27 @@ jobs:
         with:
           python-version: '3.13'
 
+      # The release tag IS the version. It is written into pyproject.toml and into the
+      # constant the User-Agent reads, here and only for this publish, so cutting a release
+      # is creating the tag and nothing else: no file to bump by hand, and no way for the
+      # tag and the manifest to disagree.
+      - name: Take the version from the tag
+        run: |
+          VERSION="$GITHUB_REF_NAME"
+          if ! echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Tag $VERSION is not a version like 1.2.3."
+            exit 1
+          fi
+          sed -i "s/^version = \".*\"/version = \"$VERSION\"/" pyproject.toml
+          sed -i "s/^VERSION = \".*\"/VERSION = \"$VERSION\"/" toxicfilter/client.py
+          grep -q "^version = \"$VERSION\"" pyproject.toml
+          grep -q "^VERSION = \"$VERSION\"" toxicfilter/client.py
+
       - run: pip install build twine
 
       # Nothing is published that does not pass. A version on PyPI cannot be replaced or
       # reused, so a broken release is always a new number.
       - run: python -m unittest discover -s tests -v
-
-      # The tag and the manifest have to say the same thing, or the release history stops
-      # meaning anything.
-      - name: The tag matches the version
-        run: |
-          TAG="$GITHUB_REF_NAME"
-          VERSION="$(grep -m1 '^version' pyproject.toml | cut -d'"' -f2)"
-          if [ "$TAG" != "$VERSION" ]; then
-            echo "Tag $GITHUB_REF_NAME does not match pyproject version $VERSION."
-            exit 1
-          fi
 
       - run: python -m build
 
