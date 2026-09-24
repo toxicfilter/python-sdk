@@ -38,7 +38,7 @@ dependencies = []
 
 [project.urls]
 Homepage = "https://toxicfilter.com"
-Documentation = "https://toxicfilter.com/docs/sdks"
+Documentation = "https://toxicfilter.com/docs/sdks/python"
 Source = "https://github.com/toxicfilter/python-sdk"
 Issues = "https://github.com/toxicfilter/python-sdk/issues"
 
