@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "toxicfilter-sdk"
-version = "1.2.0"
+version = "1.2.1"
 description = "The official Python client for the ToxicFilter content moderation API."
 readme = "README.md"
 authors = [{ name = "Edu Lazaro" }]
