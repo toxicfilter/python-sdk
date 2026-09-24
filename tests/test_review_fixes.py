@@ -307,7 +307,7 @@ class VersionTest(unittest.TestCase):
         declared = re.search(r'^version = "([^"]+)"', manifest, re.M).group(1)
 
         self.assertEqual(declared, VERSION)
-        self.assertEqual("1.2.1", VERSION)
+        self.assertEqual("1.2.2", VERSION)
 
     def test_the_user_agent_carries_it(self):
         tf, transport = client([(200, VERDICT)])

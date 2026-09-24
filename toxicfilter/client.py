@@ -19,7 +19,7 @@ from .models import BatchResult, Verdict
 #: The one place the version is written, besides ``pyproject.toml``: the publish workflow
 #: checks the tag against the manifest, and ``test_the_constant_and_the_manifest_agree``
 #: checks the manifest against this, so the User-Agent cannot claim a release it is not.
-VERSION = "1.2.1"
+VERSION = "1.2.2"
 
 
 class Transport(Protocol):

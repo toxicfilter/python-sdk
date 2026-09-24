@@ -3,7 +3,7 @@ name: Publish
 # A tag, for the same reason as everywhere else: it is the version and the commit agreeing.
 on:
   push:
-    tags: ['v*']
+    tags: ['[0-9]*.[0-9]*.[0-9]*']
 
 jobs:
   publish:
@@ -38,7 +38,7 @@ jobs:
       # meaning anything.
       - name: The tag matches the version
         run: |
-          TAG="${GITHUB_REF_NAME#v}"
+          TAG="$GITHUB_REF_NAME"
           VERSION="$(grep -m1 '^version' pyproject.toml | cut -d'"' -f2)"
           if [ "$TAG" != "$VERSION" ]; then
             echo "Tag $GITHUB_REF_NAME does not match pyproject version $VERSION."
