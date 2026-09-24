@@ -84,7 +84,7 @@ class VerdictTest(unittest.TestCase):
         self.assertEqual(0.55, verdict.score("toxicity"))
         self.assertEqual(0.0, verdict.score("hate"))
         self.assertEqual(["Contains 1 profanity."], verdict.reasons)
-        self.assertEqual({"slug": "house", "version": 4}, verdict.policy)
+        self.assertEqual({"slug": "house", "version": 4, "overridden": False}, verdict.policy)
         self.assertEqual(1, verdict.charged)
 
         sent = transport.calls[0]
@@ -325,6 +325,44 @@ class WebhookTest(unittest.TestCase):
         self.assertFalse(webhooks.verify(self.body, self.signature(at=int(time.time()) - 3600), self.secret))
         self.assertFalse(webhooks.verify(self.body, "nonsense", self.secret))
         self.assertIsNone(webhooks.event(self.body, "nonsense", self.secret))
+
+
+class PolicyOverriddenTest(unittest.TestCase):
+    def test_it_says_when_the_calls_rules_were_laid_over_the_policy(self):
+        tf, _ = client([(200, {**VERDICT, "policy": {"slug": "house", "version": 4, "overridden": True}})])
+
+        verdict = tf.text("anything", policy="house", rules={"thresholds": {"spam": {"block": 0.6}}})
+
+        self.assertEqual({"slug": "house", "version": 4, "overridden": True}, verdict.policy)
+
+
+class ProjectTest(unittest.TestCase):
+    def test_it_sends_the_project_and_reads_it_back(self):
+        tf, transport = client([(200, {**VERDICT, "project": "forum"})])
+
+        verdict = tf.text("hello", project="forum")
+
+        self.assertEqual("forum", verdict.project)
+        self.assertEqual("forum", transport.calls[0]["body"]["project"])
+
+    def test_a_verdict_without_a_project_says_none(self):
+        tf, _ = client([(200, VERDICT)])
+
+        self.assertIsNone(tf.text("hello").project)
+
+    def test_it_lists_the_recent_batches_of_a_project(self):
+        tf, transport = client([(200, {"batches": [{"batch_id": "bat_1", "project": "forum", "status": "completed"}]})])
+
+        batches = tf.batches(project="forum")
+
+        self.assertEqual(["bat_1"], [b.id for b in batches])
+        self.assertEqual("forum", batches[0].project)
+        self.assertTrue(transport.calls[0]["url"].endswith("/api/v1/batches?project=forum"))
+
+    def test_a_batch_reads_its_project(self):
+        tf, _ = client([(200, {"batch_id": "bat_1", "project": "forum", "status": "completed", "results": []})])
+
+        self.assertEqual("forum", tf.batch([{"kind": "text", "content": "hi"}], project="forum").project)
 
 
 if __name__ == "__main__":

@@ -19,7 +19,7 @@ from .models import BatchResult, Verdict
 #: The one place the version is written, besides ``pyproject.toml``: the publish workflow
 #: checks the tag against the manifest, and ``test_the_constant_and_the_manifest_agree``
 #: checks the manifest against this, so the User-Agent cannot claim a release it is not.
-VERSION = "1.0.1"
+VERSION = "1.2.0"
 
 
 class Transport(Protocol):
@@ -241,6 +241,16 @@ class Client:
     def batch_status(self, batch_id: str, **query: Any) -> BatchResult:
         """Read an async batch back, with its results paged by cursor."""
         return BatchResult(self._get(f"/api/v1/batches/{urllib.parse.quote(batch_id)}", query))
+
+    def batches(self, **query: Any) -> list[BatchResult]:
+        """The most recent batches, newest first, each summarised without its rows.
+
+        For the caller who lost a batch id: a crashed worker, a restarted deploy. Takes
+        ``limit`` (1 to 100) and ``project``. Read one in full with ``batch_status()``.
+        """
+        body = self._get("/api/v1/batches", query)
+
+        return [BatchResult(row) for row in body.get("batches", []) if isinstance(row, dict)]
 
     # -- the review queue ---------------------------------------------------------
 

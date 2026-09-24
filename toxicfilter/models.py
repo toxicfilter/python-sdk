@@ -64,6 +64,12 @@ class Verdict:
         return self.raw.get("reference")
 
     @property
+    def project(self) -> str | None:
+        """The project the verdict was filed under: the one you named, or your default."""
+        project = self.raw.get("project")
+        return project if isinstance(project, str) else None
+
+    @property
     def flagged(self) -> list[str]:
         """Everything that crossed a line, worst first.
 
@@ -95,6 +101,11 @@ class Verdict:
         A rejection with no reason is what makes people think moderation is arbitrary.
         """
         return [signal.get("reason", "") for signal in self.signals]
+
+    @property
+    def reason(self) -> str | None:
+        """The first reason, or None when there is none."""
+        return next((reason for reason in self.reasons if reason), None)
 
     @property
     def topics(self) -> dict[str, float]:
@@ -189,9 +200,16 @@ class Verdict:
 
     @property
     def policy(self) -> dict[str, Any]:
-        """Which rules produced this, by name and version. Worth logging."""
+        """Which rules produced this, by name and version. Worth logging.
+
+        ``overridden`` is true when the call's own ``rules`` were laid over the policy.
+        """
         policy = self.raw.get("policy") or {}
-        return {"slug": policy.get("slug", "default"), "version": int(policy.get("version", 0))}
+        return {
+            "slug": policy.get("slug", "default"),
+            "version": int(policy.get("version", 0)),
+            "overridden": policy.get("overridden") is True,
+        }
 
     @property
     def redacted(self) -> str | None:
@@ -348,6 +366,12 @@ class BatchResult:
     def id(self) -> str:
         """The batch's own id, `bat_...`."""
         return str(self.raw.get("batch_id", ""))
+
+    @property
+    def project(self) -> str | None:
+        """The project the batch was filed under."""
+        project = self.raw.get("project")
+        return project if isinstance(project, str) else None
 
     @property
     def status(self) -> str:

@@ -307,7 +307,7 @@ class VersionTest(unittest.TestCase):
         declared = re.search(r'^version = "([^"]+)"', manifest, re.M).group(1)
 
         self.assertEqual(declared, VERSION)
-        self.assertEqual("1.0.1", VERSION)
+        self.assertEqual("1.2.0", VERSION)
 
     def test_the_user_agent_carries_it(self):
         tf, transport = client([(200, VERDICT)])
@@ -343,6 +343,19 @@ class DocumentationTest(unittest.TestCase):
 
             for stale in ("forty", "12 credits", "moderate_ai", "moderate_image"):
                 self.assertNotIn(stale, text, f"{path.name} still says {stale!r}")
+
+
+class ReasonTest(unittest.TestCase):
+    def test_reason_is_the_first_reason_or_none(self) -> None:
+        verdict = Verdict({"decision": "block", "signals": [
+            {"category": "spam", "reason": ""},
+            {"category": "spam", "reason": "Contains a referral link"},
+            {"category": "personal_data", "reason": "Contains a phone number"},
+        ]})
+
+        self.assertEqual("Contains a referral link", verdict.reason)
+        self.assertEqual(3, len(verdict.reasons))
+        self.assertIsNone(Verdict({"decision": "allow", "signals": []}).reason)
 
 
 if __name__ == "__main__":

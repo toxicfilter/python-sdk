@@ -16,7 +16,7 @@ tf = Client(os.environ["TOXICFILTER_KEY"])
 verdict = tf.text("Check this message", locales=["en"], surface="comment", reference="comment_9931")
 
 if verdict.blocked:
-    refuse()
+    refuse(verdict.reason)  # the first reason; verdict.reasons has them all
 elif verdict.needs_review:
     hold(verdict.id, verdict.reasons)
 else:
@@ -67,6 +67,23 @@ A verdict reached without the model because the provider was failing comes back 
 purpose: one says the cheap detectors were enough, the other says nobody read it, and only
 the first is reassuring. Hold or queue what matters to you when you see it.
 
+## Projects
+
+An organization can moderate several sites, one project each. Name the project and the
+verdict is filed there, with its own activity, review queue and webhooks; leave it out and it
+goes to your default project. The keys and the credits are the organization's.
+
+```python
+verdict = tf.text(comment, project="forum")
+verdict.project  # "forum"
+
+tf.batch(items, project="forum")    # the whole batch, on the envelope
+tf.records(project="forum")         # one project's queue
+tf.batches(project="forum")         # its recent batches
+```
+
+A project that does not exist is refused with an `InvalidRequest` (`unknown_project`).
+
 ## Rules without a policy
 
 Send the line you care about and nothing else is acted on. No stored policy is looked up,
@@ -77,9 +94,16 @@ verdict = tf.text(comment, rules={"thresholds": {"sexual": {"block": 0.7}}})
 ```
 
 A category you did not mention still scores and still appears in `signals`; it just does not
-decide anything. `policy` and `rules` in the same call is a `422`, and so is a name that is
-not a real category, subject or lead type: a line that acts on nothing looks exactly like a
-line that works.
+decide anything. A name that is not a real category, subject or lead type is a `422`: a line
+that acts on nothing looks exactly like a line that works.
+
+Send `rules` together with a `policy` and they are laid over it instead: the call wins for
+what it names, the policy keeps everything else, and words are added to its lists.
+`verdict.policy` then says `"overridden": True`.
+
+```python
+verdict = tf.text(comment, policy="comments", rules={"thresholds": {"spam": {"block": 0.6}}})
+```
 
 ## The rest of the answer
 
