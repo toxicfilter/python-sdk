@@ -302,8 +302,9 @@ class Client:
     # -- statements of reasons and appeals ---------------------------------------
 
     def statement(self, record_id: str, locale: str | None = None) -> dict[str, Any]:
-        """The statement of reasons for a verdict already filed, rebuilt from the record
-        and the rules version kept on it, in ``locale`` or English.
+        """Return the statement of reasons for a verdict already filed.
+
+        Rebuilt from the record and the policy version kept on it, in ``locale`` or English.
 
         A verdict that restricts nothing has none: a 409 ``no_restriction``, raised as a
         ``ToxicFilterError`` and never retried.
@@ -315,8 +316,10 @@ class Client:
         return dict(statement) if isinstance(statement, dict) else {}
 
     def appeal(self, record_id: str, reason: str | None = None) -> Verdict:
-        """The author contests the restriction. It waits in the review queue under
-        Appeals until a person decides it with ``resolve_appeal()``.
+        """File the author's appeal against the restriction.
+
+        It waits in the review queue under Appeals until a person decides it with
+        ``resolve_appeal()``.
 
         One per verdict: a second, one on a verdict that restricts nothing, or one past
         the six-month window is a 409 (``appeal_filed``, ``no_restriction``,
@@ -339,7 +342,7 @@ class Client:
         explanation: str,
         locale: str | None = None,
     ) -> Verdict:
-        """A person decides an appeal. ``outcome`` is ``upheld`` or ``reversed``.
+        """Decide an appeal as a person: ``outcome`` is ``upheld`` or ``reversed``.
 
         The answer's ``appeal_decision`` is the reasoned decision, ready to send to the
         person who appealed.
@@ -364,8 +367,9 @@ class Client:
         project: str | None = None,
         after: int | None = None,
     ) -> dict[str, Any]:
-        """A period's statements of reasons, each already in the shape the Commission's
-        DSA Transparency Database takes.
+        """Return a period's statements in the Transparency Database's shape.
+
+        Each one is already in the shape the Commission's DSA Transparency Database takes.
 
         Dates are ``YYYY-MM-DD``, up to 31 days, a hundred per page: pass ``next`` back as
         ``after`` for the following one.
