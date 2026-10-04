@@ -218,8 +218,11 @@ articles 17, 20 and 24(5) of the Digital Services Act ask for; it is not legal a
 ```python
 verdict = tf.text(comment, project="forum")
 
-verdict.statement        # restriction, territory, facts, automated, ground, redress, text
+verdict.statement        # restrictions, territories, facts, automated, ground, redress, text
 verdict.statement_text   # the same in plain words, ready to send to the author
+
+# Say what your site does with it, when it is not what the rule or the project says.
+tf.text(comment, restriction=["removal", "account_suspended"])
 
 # Later, from the record, in another language. A verdict that restricts nothing is a 409
 # `no_restriction`, raised as a ToxicFilterError and never retried.
