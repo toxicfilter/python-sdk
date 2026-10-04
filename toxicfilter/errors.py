@@ -114,9 +114,11 @@ def error_for(status: int, payload: dict[str, Any]) -> ToxicFilterError:
         return InvalidRequest(message, status, code, payload)
     if status == 429:
         return RateLimited(message, status, code, payload)
-    # 409 is `idempotency_in_flight`: the earlier attempt at this very call is still
-    # running, so waiting and asking again is exactly right.
-    if status == 409 or status >= 500:
+    # A 409 `idempotency_in_flight` is the earlier attempt at this very call still
+    # running, so waiting and asking again is exactly right. Every other 409 is a refusal
+    # about the record's state (`appeal_filed`, `no_restriction`), which asking again
+    # cannot change.
+    if (status == 409 and code == "idempotency_in_flight") or status >= 500:
         return ServerError(message, status, code, payload)
 
     return ToxicFilterError(message, status, code, payload)

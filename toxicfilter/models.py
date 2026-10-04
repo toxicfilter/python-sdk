@@ -306,6 +306,51 @@ class Verdict:
         return dict(feedback) if isinstance(feedback, dict) else None
 
     @property
+    def statement(self) -> dict[str, Any] | None:
+        """The statement of reasons owed to the author of restricted content (DSA,
+        art. 17): ``restriction``, ``territory``, ``duration``, ``facts``, ``automated``,
+        ``ground``, ``redress``, ``locale`` and ``text``.
+
+        ``None`` when the project does not write statements or the verdict restricts
+        nothing.
+        """
+        statement = self.raw.get("statement")
+        return dict(statement) if isinstance(statement, dict) else None
+
+    @property
+    def statement_text(self) -> str | None:
+        """The statement in plain words, ready to show or send to the author."""
+        text = (self.statement or {}).get("text")
+        return text if isinstance(text, str) else None
+
+    @property
+    def appeal(self) -> dict[str, Any] | None:
+        """The appeal against this verdict: ``state``, ``filed_at``, ``reason``,
+        ``resolved_at``, ``resolved_by`` and ``explanation``.
+
+        ``None`` when nobody has appealed, and only on the answers about a record
+        (``record()``, ``resolve()``, ``appeal()``, ``resolve_appeal()``).
+        """
+        appeal = self.raw.get("appeal")
+        return dict(appeal) if isinstance(appeal, dict) else None
+
+    @property
+    def appeal_decision(self) -> str | None:
+        """The reasoned decision on an appeal, ready to send to the person who appealed.
+        Only ``resolve_appeal()`` carries it.
+        """
+        decision = self.raw.get("appeal_decision")
+        return decision if isinstance(decision, str) else None
+
+    @property
+    def transparency(self) -> dict[str, Any] | None:
+        """Where the statement was filed with the Commission's Transparency Database:
+        ``uuid`` and ``submitted_at``. ``None`` when it has not been.
+        """
+        transparency = self.raw.get("transparency")
+        return dict(transparency) if isinstance(transparency, dict) else None
+
+    @property
     def content(self) -> str | None:
         """The content, when your policy asked us to keep it and it has not expired yet.
 

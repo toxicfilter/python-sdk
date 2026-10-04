@@ -299,6 +299,84 @@ class Client:
 
         return Verdict(self._post(path, payload))
 
+    # -- statements of reasons and appeals ---------------------------------------
+
+    def statement(self, record_id: str, locale: str | None = None) -> dict[str, Any]:
+        """The statement of reasons for a verdict already filed, rebuilt from the record
+        and the rules version kept on it, in ``locale`` or English.
+
+        A verdict that restricts nothing has none: a 409 ``no_restriction``, raised as a
+        ``ToxicFilterError`` and never retried.
+        """
+        path = f"/api/v1/records/{urllib.parse.quote(record_id)}/statement"
+        body = self._get(path, {"locale": locale})
+        statement = body.get("statement")
+
+        return dict(statement) if isinstance(statement, dict) else {}
+
+    def appeal(self, record_id: str, reason: str | None = None) -> Verdict:
+        """The author contests the restriction. It waits in the review queue under
+        Appeals until a person decides it with ``resolve_appeal()``.
+
+        One per verdict: a second, one on a verdict that restricts nothing, or one past
+        the six-month window is a 409 (``appeal_filed``, ``no_restriction``,
+        ``appeal_window_closed``).
+        """
+        payload: dict[str, Any] = {}
+
+        if reason is not None:
+            payload["reason"] = reason
+
+        path = f"/api/v1/records/{urllib.parse.quote(record_id)}/appeal"
+
+        return Verdict(self._post(path, payload))
+
+    def resolve_appeal(
+        self,
+        record_id: str,
+        outcome: str,
+        moderator: str,
+        explanation: str,
+        locale: str | None = None,
+    ) -> Verdict:
+        """A person decides an appeal. ``outcome`` is ``upheld`` or ``reversed``.
+
+        The answer's ``appeal_decision`` is the reasoned decision, ready to send to the
+        person who appealed.
+        """
+        payload: dict[str, Any] = {
+            "outcome": outcome,
+            "moderator": moderator,
+            "explanation": explanation,
+        }
+
+        if locale is not None:
+            payload["locale"] = locale
+
+        path = f"/api/v1/records/{urllib.parse.quote(record_id)}/appeal/resolve"
+
+        return Verdict(self._post(path, payload))
+
+    def transparency(
+        self,
+        since: str,
+        until: str | None = None,
+        project: str | None = None,
+        after: int | None = None,
+    ) -> dict[str, Any]:
+        """A period's statements of reasons, each already in the shape the Commission's
+        DSA Transparency Database takes.
+
+        Dates are ``YYYY-MM-DD``, up to 31 days, a hundred per page: pass ``next`` back as
+        ``after`` for the following one.
+        """
+        return self._get("/api/v1/statements/transparency", {
+            "since": since,
+            "until": until,
+            "project": project,
+            "after": after,
+        })
+
     # -- the account --------------------------------------------------------------
 
     def usage(self) -> dict[str, Any]:
