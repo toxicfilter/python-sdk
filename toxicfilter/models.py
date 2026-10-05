@@ -148,15 +148,42 @@ class Verdict:
         """Part of the pipeline could not run, usually the model.
 
         The verdict is still real; it was reached with less. Its own field rather than a
-        quiet ``used_ai: False`` so a caller who asked for a model can tell "it read this
-        and found nothing" from "it never ran".
+        quiet ``model_read`` of False so a caller whose effort allowed the model can tell
+        "it read this and found nothing" from "it never ran".
         """
         return bool(self.raw.get("degraded"))
 
     @property
-    def used_ai(self) -> bool:
+    def effort(self) -> str | None:
+        """The effort applied: ``low``, ``medium`` or ``high``.
+
+        Not always the one sent: an image asked for at ``medium`` is read at ``high``.
+        ``None`` on a stored verdict that never knew it.
+        """
+        effort = self.raw.get("effort")
+        return effort if isinstance(effort, str) else None
+
+    @property
+    def model_read(self) -> bool:
         """Whether a model read it, or the cheap detectors settled it."""
-        return bool(self.raw.get("used_ai"))
+        model = self.raw.get("model")
+        return isinstance(model, dict) and model.get("read") is True
+
+    @property
+    def model_why(self) -> str | None:
+        """Why the model did not read this although the effort allowed it, or ``None``.
+
+        ``settled`` (the free checks were certain), ``conversation_sampling`` (in a
+        conversation the model reads only when it adds something), ``test_key`` (test keys
+        never reach the model) or ``unavailable``. ``None`` when the model read it or the
+        effort never allowed it. Deliberately, as opposed to ``degraded``, which says it
+        could not run.
+        """
+        model = self.raw.get("model")
+        if not isinstance(model, dict) or model.get("read") is not False:
+            return None
+        why = model.get("why")
+        return why if isinstance(why, str) else None
 
     @property
     def cached(self) -> bool:
@@ -187,13 +214,10 @@ class Verdict:
 
     @property
     def model(self) -> dict[str, Any] | None:
-        """``{"asked": True, "read": False, "why": ...}`` when you asked for the model and
-        it was deliberately not run on this call, or ``None``.
+        """The model block as the API sent it, ``{"read": False, "why": ...}`` or
+        ``{"read": True}``, or ``None`` when the answer carries none.
 
-        Deliberately, as opposed to ``degraded``, which says it could not run. In a
-        conversation the model reads only when it adds something (``why`` is then
-        ``conversation_sampling``), and without this block a message it skipped looked
-        exactly like one the cheap detectors settled.
+        ``model_read`` and ``model_why`` read it for you.
         """
         model = self.raw.get("model")
         return dict(model) if isinstance(model, dict) else None

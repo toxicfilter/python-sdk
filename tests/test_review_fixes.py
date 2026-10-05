@@ -259,15 +259,34 @@ class TransportFailuresTest(unittest.TestCase):
 
 
 class NewAccessorsTest(unittest.TestCase):
-    def test_it_says_when_the_model_was_deliberately_not_asked(self):
-        tf, _ = client([(200, {**VERDICT, "model": {"asked": True, "read": False, "why": "conversation_sampling"}})])
+    def test_it_says_when_the_model_was_deliberately_not_run(self):
+        tf, _ = client([(200, {**VERDICT, "model": {"read": False, "why": "conversation_sampling"}})])
 
-        self.assertEqual("conversation_sampling", tf.text("x").model["why"])
+        verdict = tf.text("x")
 
-    def test_a_verdict_the_model_read_has_no_model_block(self):
-        tf, _ = client([(200, VERDICT)])
+        self.assertFalse(verdict.model_read)
+        self.assertEqual("conversation_sampling", verdict.model_why)
+        self.assertEqual("conversation_sampling", verdict.model["why"])
 
-        self.assertIsNone(tf.text("x").model)
+    def test_it_reads_the_effort_applied_and_whether_the_model_read_it(self):
+        tf, _ = client([(200, {**VERDICT, "effort": "high", "model": {"read": True}})])
+
+        verdict = tf.text("x")
+
+        self.assertEqual("high", verdict.effort)
+        self.assertTrue(verdict.model_read)
+        self.assertIsNone(verdict.model_why)
+
+    def test_a_verdict_with_no_model_block_reads_as_not_read(self):
+        raw = {key: value for key, value in VERDICT.items() if key not in ("model", "effort")}
+        tf, _ = client([(200, raw)])
+
+        verdict = tf.text("x")
+
+        self.assertIsNone(verdict.model)
+        self.assertIsNone(verdict.effort)
+        self.assertFalse(verdict.model_read)
+        self.assertIsNone(verdict.model_why)
 
     def test_it_says_when_the_credits_come_back(self):
         tf, _ = client([(200, VERDICT)])

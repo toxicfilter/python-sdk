@@ -62,7 +62,8 @@ VERDICT = {
     "signals": [
         {"category": "toxicity", "score": 0.55, "detector": "term", "reason": "Contains 1 profanity."},
     ],
-    "used_ai": False,
+    "effort": "medium",
+    "model": {"read": False, "why": "settled"},
     "took_ms": 2,
     "cached": False,
     "policy": {"slug": "house", "version": 4},
@@ -109,11 +110,11 @@ class VerdictTest(unittest.TestCase):
             {"author": "u5", "content": "no tienes ni idea"},
         ]
 
-        tf.conversation(messages, locales=["es"], ai=False)
+        tf.conversation(messages, locales=["es"], effort="low")
 
         sent = transport.calls[0]
         self.assertEqual("https://example.test/api/v1/conversation", sent["url"])
-        self.assertEqual({"messages": messages, "locales": ["es"], "ai": False}, sent["body"])
+        self.assertEqual({"messages": messages, "locales": ["es"], "effort": "low"}, sent["body"])
 
     def test_it_reads_the_second_axis(self):
         """Topics are not categories: how much a post is ABOUT something, measured always."""
@@ -242,7 +243,7 @@ class BatchTest(unittest.TestCase):
             ]
         )
 
-        result = tf.batch([{"kind": "text", "content": "one"}, {"kind": "text"}], ai=False)
+        result = tf.batch([{"kind": "text", "content": "one"}, {"kind": "text"}], effort="low")
 
         self.assertTrue(result.finished)
         self.assertEqual(["c_1"], [v.reference for v in result.verdicts.values()])
