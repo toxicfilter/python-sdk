@@ -135,6 +135,19 @@ what it names, the policy keeps everything else, and words are added to its list
 verdict = tf.text(comment, policy="comments", rules={"thresholds": {"spam": {"block": 0.6}}})
 ```
 
+Domain rules travel the same way: lists of domains or endings (`shop.example` covers its
+subdomains, `ru` everything under it), a domain registered recently, and what Cloudflare's
+filtering resolvers block. They apply to the links in a text, to `url()` and to the domain of
+an email address.
+
+```python
+verdict = tf.text(comment, rules={"domains": {
+    "block": ["ru"],
+    "young": {"days": 30, "action": "review"},
+    "malware": "block",
+}})
+```
+
 ## The rest of the answer
 
 ```python
