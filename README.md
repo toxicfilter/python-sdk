@@ -2,7 +2,7 @@
 
 # ToxicFilter Python SDK
 
-[![tests](https://github.com/toxicfilter/python-sdk/actions/workflows/tests.yml/badge.svg)](https://github.com/toxicfilter/python-sdk/actions/workflows/tests.yml)
+[![tests](https://github.com/toxicfilter/python-sdk/actions/workflows/tests.yml/badge.svg)](https://github.com/toxicfilter/python-sdk/actions/workflows/tests.yml) [![PyPI version](https://img.shields.io/pypi/v/toxicfilter-sdk.svg)](https://pypi.org/project/toxicfilter-sdk/) [![PyPI downloads](https://img.shields.io/pypi/dm/toxicfilter-sdk.svg)](https://pypi.org/project/toxicfilter-sdk/) [![license](https://img.shields.io/pypi/l/toxicfilter-sdk.svg)](https://github.com/toxicfilter/python-sdk/blob/main/LICENSE) [![Python versions](https://img.shields.io/pypi/pyversions/toxicfilter-sdk.svg)](https://pypi.org/project/toxicfilter-sdk/)
 
 The official Python client for [ToxicFilter](https://toxicfilter.com).
 
