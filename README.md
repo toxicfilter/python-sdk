@@ -2,6 +2,8 @@
 
 # ToxicFilter Python SDK
 
+[![tests](https://github.com/toxicfilter/python-sdk/actions/workflows/tests.yml/badge.svg)](https://github.com/toxicfilter/python-sdk/actions/workflows/tests.yml)
+
 The official Python client for [ToxicFilter](https://toxicfilter.com).
 
 ```bash
